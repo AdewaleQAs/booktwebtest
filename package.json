@@ -1,0 +1,28 @@
+{
+  "name": "bookt-e2e",
+  "version": "1.0.0",
+  "description": "End-to-end tests for Bookt applications",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "test:debug": "playwright test --debug",
+    "test:chrome": "playwright test --project=chromium",
+    "test:firefox": "playwright test --project=firefox",
+    "test:safari": "playwright test --project=webkit",
+    "test:mobile": "playwright test --project='Mobile Chrome' --project='Mobile Safari'",
+    "test:auth": "playwright test tests/auth/",
+    "test:dashboard": "playwright test --project=setup --project=chromium-authenticated",
+    "test:events": "playwright test --project=setup --project=chromium-authenticated tests/dashboard/create-event.spec.ts",
+    "test:clone": "playwright test --project=setup --project=chromium-authenticated tests/dashboard/clone-event.spec.ts",
+    "test:tickets": "playwright test --project=setup --project=chromium-authenticated tests/dashboard/edit-ticket.spec.ts",
+    "report": "playwright show-report",
+    "codegen": "playwright codegen"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.58.1",
+    "@types/node": "^20",
+    "typescript": "^5",
+    "dotenv": "^16.4.5"
+  }
+}
