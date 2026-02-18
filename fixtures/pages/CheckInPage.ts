@@ -12,13 +12,15 @@ export class CheckInPage {
   readonly liveEventsButton: Locator;
   readonly searchInput: Locator;
   readonly eventsHeading: Locator;
-  readonly previousButton: Locator;
-  readonly nextButton: Locator;
+  readonly previousButton: Locator;  // event list Previous (nth 0)
+  readonly nextButton: Locator;       // event list Next (nth 0)
 
   // ---- Guest List Panel ----
   readonly guestListHeading: Locator;
   readonly noGuestsText: Locator;
   readonly selectEventText: Locator;
+  readonly guestPreviousButton: Locator; // guest list Previous (nth 1)
+  readonly guestNextButton: Locator;     // guest list Next (nth 1)
 
   // ---- Guest Detail Panel ----
   readonly checkInButton: Locator;
@@ -38,13 +40,15 @@ export class CheckInPage {
     this.liveEventsButton = page.getByRole('button', { name: 'Live Events' });
     this.searchInput = page.getByRole('textbox', { name: 'Search live events...' });
     this.eventsHeading = page.getByRole('heading', { level: 2 }).filter({ hasText: /Your Live Event/ });
-    this.previousButton = page.getByRole('button', { name: 'Previous' });
-    this.nextButton = page.getByRole('button', { name: 'Next' });
+    this.previousButton = page.getByRole('button', { name: 'Previous' }).nth(0);
+    this.nextButton = page.getByRole('button', { name: 'Next' }).nth(0);
 
     // ---- Guest List Panel ----
     this.guestListHeading = page.getByRole('heading', { name: 'Guest List' });
     this.noGuestsText = page.locator('text=No guests found for this event');
     this.selectEventText = page.locator('text=Select an event to view guests');
+    this.guestPreviousButton = page.getByRole('button', { name: 'Previous' }).nth(1);
+    this.guestNextButton = page.getByRole('button', { name: 'Next' }).nth(1);
 
     // ---- Guest Detail Panel ----
     this.checkInButton = page.getByRole('button', { name: 'Check-In' });
@@ -86,6 +90,16 @@ export class CheckInPage {
   }
 
   /**
+   * Search for an event by query, wait for it to appear, then click it.
+   * Clicking an event card clears the search and restores the full event list.
+   */
+  async searchAndSelectEvent(searchTerm: string, eventName: string) {
+    await this.searchEvents(searchTerm);
+    await this.expectEventVisible(eventName);
+    await this.selectEvent(eventName);
+  }
+
+  /**
    * Get the total events count text from the heading.
    * The heading looks like "Your Live Event(s)(7 total)" — returns e.g. "(7 total)"
    */
@@ -98,9 +112,9 @@ export class CheckInPage {
   // Guest Interactions
   // =====================================================================
 
-  /** Click a guest card by the guest's name. */
+  /** Click a guest card by the guest's name (uses first match to handle duplicate names). */
   async selectGuest(name: string) {
-    await this.page.getByRole('heading', { name, level: 3 }).click();
+    await this.page.getByRole('heading', { name, level: 3 }).first().click();
     await this.page.waitForTimeout(500);
   }
 
@@ -118,9 +132,9 @@ export class CheckInPage {
     await expect(this.page.getByRole('heading', { name, level: 3 })).not.toBeVisible({ timeout: 10000 });
   }
 
-  /** Assert a guest card with the given name is visible in the guest list. */
+  /** Assert a guest card with the given name is visible in the guest list (uses first match). */
   async expectGuestVisible(name: string) {
-    await expect(this.page.getByRole('heading', { name, level: 3 })).toBeVisible({ timeout: 10000 });
+    await expect(this.page.getByRole('heading', { name, level: 3 }).first()).toBeVisible({ timeout: 10000 });
   }
 
   /** Assert the guest detail panel is showing the given guest's name. */

@@ -9,18 +9,22 @@ import { test, expect } from '../../fixtures';
  * - Guest detail panel (shown on guest selection)
  *
  * Uses stable staging data:
- *   - "Praveen's Birthday Bash!" → has 1 guest (George Agomuo, Pending)
+ *   - Search "apollo" → "Apollo Wrldx Presents: ACTIV3 by DJ YB" (50 guests, 10 pages)
  *   - "PM2AM" → has 0 guests
  *   - 7 total live events across 2 pages
+ *
+ * Key UX behaviour: clicking an event card clears the search input and
+ * restores the full event list (7 total).
  *
  * NOTE: The "Check-In" action button is intentionally NOT clicked in tests
  * as it would modify staging data (mark a guest as checked in).
  */
 
-const KNOWN_EVENT = "Praveen's Birthday Bash!";
+const APOLLO_SEARCH = 'apollo';
+const KNOWN_EVENT = 'Apollo Wrldx Presents: ACTIV3 by DJ YB';
 const EMPTY_EVENT = 'PM2AM';
-const KNOWN_GUEST = 'George Agomuo';
-const KNOWN_GUEST_EMAIL = 'agomzygeo@gmail.com';
+const KNOWN_GUEST = 'Princi Ja';
+const KNOWN_GUEST_EMAIL = 'princi.j@cisinlabs.com';
 
 // =============================================================================
 // PAGE ELEMENTS
@@ -60,15 +64,12 @@ test.describe('Check-In — Event List', () => {
   });
 
   test('should show live event cards with names', async ({ checkInPage }) => {
-    // At least the known event should appear on page 1
-    await checkInPage.expectEventVisible(KNOWN_EVENT);
+    await expect(checkInPage.eventsHeading).toBeVisible();
+    const countText = await checkInPage.getEventsCountText();
+    expect(countText).toMatch(/\d+ total/);
   });
 
   test('should show event card with date', async ({ checkInPage, page }) => {
-    // Event card shows "On: <date>" paragraph
-    await checkInPage.expectEventVisible(KNOWN_EVENT);
-    await expect(page.locator('paragraph', { hasText: /On:/ }).first()).not.toBeVisible();
-    // Use text locator instead
     await expect(page.locator('p', { hasText: /On:/ }).first()).toBeVisible();
   });
 
@@ -95,36 +96,43 @@ test.describe('Check-In — Search', () => {
   });
 
   test('should filter events when searching by name', async ({ checkInPage }) => {
-    // Search for known stable event — should appear, rest should be filtered out
-    await checkInPage.searchEvents("Praveen's");
+    await checkInPage.searchEvents(APOLLO_SEARCH);
     await checkInPage.expectEventVisible(KNOWN_EVENT);
+    const countText = await checkInPage.getEventsCountText();
+    expect(countText).toContain('1 total');
   });
 
   test('should update event count when search is active', async ({ checkInPage }) => {
-    // Full list has 7 events; wait for events to load before capturing baseline
+    // Search and confirm filtered count is exactly 1
+    await checkInPage.searchEvents(APOLLO_SEARCH);
     await checkInPage.expectEventVisible(KNOWN_EVENT);
-    const fullCountText = await checkInPage.getEventsCountText();
-
-    await checkInPage.searchEvents("Praveen's");
     const filteredCountText = await checkInPage.getEventsCountText();
-
-    // Count should update and be less than original
-    expect(filteredCountText).toMatch(/\d+ total/);
-    expect(filteredCountText).not.toEqual(fullCountText);
+    expect(filteredCountText).toContain('1 total');
   });
 
   test('should restore full list when search is cleared', async ({ checkInPage }) => {
-    // Wait for events to load (non-zero count) before capturing baseline
+    // Wait for events to load (non-zero) before capturing baseline
+    await checkInPage.searchEvents(APOLLO_SEARCH);
     await checkInPage.expectEventVisible(KNOWN_EVENT);
-    const fullCountText = await checkInPage.getEventsCountText();
-
-    await checkInPage.searchEvents("Praveen's");
     const filteredCountText = await checkInPage.getEventsCountText();
-    expect(filteredCountText).not.toEqual(fullCountText);
+    expect(filteredCountText).toContain('1 total');
 
     await checkInPage.clearSearch();
     const restoredCountText = await checkInPage.getEventsCountText();
-    expect(restoredCountText).toEqual(fullCountText);
+    expect(restoredCountText).toContain('7 total');
+  });
+
+  test('should clear search and restore full list when event card is clicked', async ({ checkInPage }) => {
+    await checkInPage.searchEvents(APOLLO_SEARCH);
+    await checkInPage.expectEventVisible(KNOWN_EVENT);
+    expect(await checkInPage.getEventsCountText()).toContain('1 total');
+
+    // Clicking the event card clears the search and restores all events
+    await checkInPage.selectEvent(KNOWN_EVENT);
+
+    await expect(checkInPage.searchInput).toHaveValue('');
+    const restoredCountText = await checkInPage.getEventsCountText();
+    expect(restoredCountText).toMatch(/7 total/);
   });
 });
 
@@ -167,14 +175,27 @@ test.describe('Check-In — Guest List', () => {
     await checkInPage.expectSelectEventPrompt();
   });
 
-  test('should load guest list when event is selected', async ({ checkInPage }) => {
-    await checkInPage.selectEvent(KNOWN_EVENT);
+  test('should load guest list when event is selected via search', async ({ checkInPage }) => {
+    await checkInPage.searchAndSelectEvent(APOLLO_SEARCH, KNOWN_EVENT);
     await checkInPage.expectGuestVisible(KNOWN_GUEST);
   });
 
   test('should show guest email in guest list card', async ({ checkInPage, page }) => {
-    await checkInPage.selectEvent(KNOWN_EVENT);
+    await checkInPage.searchAndSelectEvent(APOLLO_SEARCH, KNOWN_EVENT);
     await expect(page.locator(`text=${KNOWN_GUEST_EMAIL}`).first()).toBeVisible({ timeout: 10000 });
+  });
+
+  test('should show ticket count on guest list card', async ({ checkInPage, page }) => {
+    await checkInPage.searchAndSelectEvent(APOLLO_SEARCH, KNOWN_EVENT);
+    await expect(page.locator('p', { hasText: /\d+ Ticket/ }).first()).toBeVisible({ timeout: 10000 });
+  });
+
+  test('should show guest list pagination for event with many guests', async ({ checkInPage }) => {
+    await checkInPage.searchAndSelectEvent(APOLLO_SEARCH, KNOWN_EVENT);
+    // Apollo has 50 guests — 10 pages
+    await checkInPage.expectPaginationInfo('Page 1 of 10');
+    await expect(checkInPage.guestNextButton).toBeEnabled();
+    await expect(checkInPage.guestPreviousButton).toBeDisabled();
   });
 
   test('should show "No guests found for this event" for event with no guests', async ({ checkInPage }) => {
@@ -190,7 +211,7 @@ test.describe('Check-In — Guest List', () => {
 test.describe('Check-In — Guest Detail Panel', () => {
   test.beforeEach(async ({ checkInPage }) => {
     await checkInPage.goto();
-    await checkInPage.selectEvent(KNOWN_EVENT);
+    await checkInPage.searchAndSelectEvent(APOLLO_SEARCH, KNOWN_EVENT);
     await checkInPage.selectGuest(KNOWN_GUEST);
   });
 
@@ -202,8 +223,8 @@ test.describe('Check-In — Guest Detail Panel', () => {
     await expect(page.locator(`text=${KNOWN_GUEST_EMAIL}`).first()).toBeVisible({ timeout: 10000 });
   });
 
-  test('should show "First Timer" badge on guest detail', async ({ checkInPage, page }) => {
-    await expect(page.locator('text=First Timer')).toBeVisible({ timeout: 10000 });
+  test('should show "Repeat Customer" badge on guest detail', async ({ checkInPage, page }) => {
+    await expect(page.locator('text=Repeat Customer')).toBeVisible({ timeout: 10000 });
   });
 
   test('should show Ticket Information section', async ({ checkInPage }) => {
