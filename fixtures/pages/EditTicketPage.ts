@@ -42,6 +42,10 @@ export class EditTicketPage {
   readonly restrictTicketsToggle: Locator;
   readonly approvalRequiredToggle: Locator;
 
+  // ---- Inline Validation Errors ----
+  readonly ticketNameError: Locator;
+  readonly quantityError: Locator;
+
   // ---- Action Buttons ----
   readonly cancelButton: Locator;
   readonly saveChangesButton: Locator;
@@ -98,6 +102,11 @@ export class EditTicketPage {
     this.approvalRequiredToggle = page.getByRole('button', {
       name: 'Is approval required?',
     });
+
+    // ---- Inline Validation Errors ----
+    // These <p> elements appear under the relevant field when Create Ticket / Save Changes is clicked with invalid data
+    this.ticketNameError = page.locator('p', { hasText: 'Ticket name is required' });
+    this.quantityError = page.locator('p', { hasText: 'Quantity must be at least 1' });
 
     // ---- Action Buttons ----
     this.cancelButton = page.getByRole('button', { name: 'Cancel' });
@@ -324,5 +333,15 @@ export class EditTicketPage {
   async expectErrorToast(message: string) {
     const toast = this.page.locator('li').filter({ hasText: message });
     await expect(toast).toBeVisible({ timeout: 10000 });
+  }
+
+  /** Assert an inline validation error paragraph is visible. */
+  async expectValidationError(message: string) {
+    await expect(this.page.locator('p', { hasText: message })).toBeVisible();
+  }
+
+  /** Assert an inline validation error paragraph is NOT visible. */
+  async expectNoValidationError(message: string) {
+    await expect(this.page.locator('p', { hasText: message })).not.toBeVisible();
   }
 }

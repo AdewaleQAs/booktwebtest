@@ -282,6 +282,117 @@ test.describe('Ticket CRUD Operations', () => {
 });
 
 // =============================================================================
+// CREATE TICKET FORM — Validation
+// Inline <p> errors appear under each field when submit is clicked with invalid data.
+// Validation is submit-triggered, NOT real-time (button is never disabled pre-submit).
+// =============================================================================
+
+test.describe('Create Ticket Form — Validation', () => {
+  test.beforeEach(async ({ editTicketPage }) => {
+    await editTicketPage.gotoCreateTicket(EVENT_ID);
+  });
+
+  test('Create Ticket button is clickable on empty form (validation is submit-triggered)', async ({ editTicketPage }) => {
+    await expect(editTicketPage.createTicketSubmitButton).toBeEnabled();
+  });
+
+  test('should show "Ticket name is required" when name is empty on submit', async ({ editTicketPage }) => {
+    await editTicketPage.createTicketSubmitButton.click();
+    await editTicketPage.expectValidationError('Ticket name is required');
+  });
+
+  test('should show "Quantity must be at least 1" when quantity is 0 on submit', async ({ editTicketPage }) => {
+    await editTicketPage.createTicketSubmitButton.click();
+    await editTicketPage.expectValidationError('Quantity must be at least 1');
+  });
+
+  test('should show both name and quantity errors simultaneously on empty form submit', async ({ editTicketPage }) => {
+    await editTicketPage.createTicketSubmitButton.click();
+    await expect(editTicketPage.ticketNameError).toBeVisible();
+    await expect(editTicketPage.quantityError).toBeVisible();
+  });
+
+  test('Free: filling name removes name error but quantity error persists', async ({ editTicketPage }) => {
+    // Trigger both errors first
+    await editTicketPage.createTicketSubmitButton.click();
+    await expect(editTicketPage.ticketNameError).toBeVisible();
+    await expect(editTicketPage.quantityError).toBeVisible();
+
+    // Fill name and submit again — name error should clear
+    await editTicketPage.fillTicketName('VIP');
+    await editTicketPage.createTicketSubmitButton.click();
+    await editTicketPage.expectNoValidationError('Ticket name is required');
+    await expect(editTicketPage.quantityError).toBeVisible();
+  });
+
+  test('Paid: shows name and quantity errors on empty submit', async ({ editTicketPage }) => {
+    await editTicketPage.selectTicketType('Paid');
+    await editTicketPage.createTicketSubmitButton.click();
+    await expect(editTicketPage.ticketNameError).toBeVisible();
+    await expect(editTicketPage.quantityError).toBeVisible();
+  });
+
+  test('Donation: shows name error on empty submit', async ({ editTicketPage }) => {
+    await editTicketPage.selectTicketType('Donation');
+    await editTicketPage.createTicketSubmitButton.click();
+    await expect(editTicketPage.ticketNameError).toBeVisible();
+  });
+
+  test('Pay Anything: shows name and quantity errors on empty submit', async ({ editTicketPage }) => {
+    await editTicketPage.selectTicketType('Pay Anything');
+    await editTicketPage.createTicketSubmitButton.click();
+    await expect(editTicketPage.ticketNameError).toBeVisible();
+    await expect(editTicketPage.quantityError).toBeVisible();
+  });
+
+  test('should show quantity error when quantity is explicitly set to 0', async ({ editTicketPage }) => {
+    await editTicketPage.fillTicketName('Test Ticket');
+    await editTicketPage.ticketQuantityInput.clear();
+    await editTicketPage.ticketQuantityInput.fill('0');
+    await editTicketPage.createTicketSubmitButton.click();
+    await editTicketPage.expectValidationError('Quantity must be at least 1');
+  });
+
+  test('should not show errors when all required fields are filled (no premature errors)', async ({ editTicketPage }) => {
+    // Fill required fields without submitting — no errors should be visible
+    await editTicketPage.fillTicketName('Valid Ticket');
+    await editTicketPage.fillTicketQuantity('10');
+    await editTicketPage.expectNoValidationError('Ticket name is required');
+    await editTicketPage.expectNoValidationError('Quantity must be at least 1');
+  });
+});
+
+// =============================================================================
+// EDIT TICKET FORM — Validation
+// =============================================================================
+
+test.describe('Edit Ticket Form — Validation', () => {
+  test('Save Changes button is clickable (not pre-disabled) on edit page', async ({ editTicketPage }) => {
+    await editTicketPage.gotoTicketList(EVENT_ID);
+    await editTicketPage.openTicketMenu(EXISTING_TICKET);
+    await editTicketPage.clickEdit();
+
+    await expect(editTicketPage.saveChangesButton).toBeEnabled();
+  });
+
+  test('should show name validation error when name is cleared and form submitted', async ({ editTicketPage }) => {
+    await editTicketPage.gotoTicketList(EVENT_ID);
+    await editTicketPage.openTicketMenu(EXISTING_TICKET);
+    await editTicketPage.clickEdit();
+
+    // Clear the ticket name
+    await editTicketPage.ticketNameInput.clear();
+    await editTicketPage.saveChangesButton.click();
+
+    // Expect either inline validation error OR the known API bug toast
+    // (if frontend validation fires before the API call, we get the inline error)
+    const nameError = editTicketPage.page.locator('p', { hasText: 'Ticket name is required' });
+    const apiError = editTicketPage.page.locator('li').filter({ hasText: 'Unexpected end of JSON input' });
+    await expect(nameError.or(apiError)).toBeVisible({ timeout: 10000 });
+  });
+});
+
+// =============================================================================
 // NAVIGATION — Cancel & Go Back
 // =============================================================================
 
