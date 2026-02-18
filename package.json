@@ -16,6 +16,7 @@
     "test:events": "playwright test --project=setup --project=chromium-authenticated tests/dashboard/create-event.spec.ts",
     "test:clone": "playwright test --project=setup --project=chromium-authenticated tests/dashboard/clone-event.spec.ts",
     "test:tickets": "playwright test --project=setup --project=chromium-authenticated tests/dashboard/edit-ticket.spec.ts",
+    "test:checkin": "playwright test --project=setup --project=chromium-authenticated tests/dashboard/check-in.spec.ts",
     "report": "playwright show-report",
     "codegen": "playwright codegen"
   },

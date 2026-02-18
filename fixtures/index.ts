@@ -1,4 +1,5 @@
 import { test as base } from '@playwright/test';
+import { CheckInPage } from './pages/CheckInPage';
 import { CloneEventPage } from './pages/CloneEventPage';
 import { CreateEventPage } from './pages/CreateEventPage';
 import { DashboardPage } from './pages/DashboardPage';
@@ -8,6 +9,7 @@ import { SignUpPage } from './pages/SignUpPage';
 import { VerificationModal } from './pages/VerificationModal';
 
 type Fixtures = {
+  checkInPage: CheckInPage;
   cloneEventPage: CloneEventPage;
   createEventPage: CreateEventPage;
   dashboardPage: DashboardPage;
@@ -18,6 +20,10 @@ type Fixtures = {
 };
 
 export const test = base.extend<Fixtures>({
+  checkInPage: async ({ page }, use) => {
+    const checkInPage = new CheckInPage(page);
+    await use(checkInPage);
+  },
   cloneEventPage: async ({ page }, use) => {
     const cloneEventPage = new CloneEventPage(page);
     await use(cloneEventPage);
