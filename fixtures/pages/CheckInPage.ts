@@ -24,9 +24,16 @@ export class CheckInPage {
 
   // ---- Guest Detail Panel ----
   readonly checkInButton: Locator;
+  readonly alreadyCheckedInButton: Locator;
   readonly sendSmsButton: Locator;
   readonly resendTicketButton: Locator;
   readonly ticketInfoHeading: Locator;
+
+  // ---- Check-In Confirmation Dialog ----
+  readonly checkInDialog: Locator;
+  readonly checkInDialogHeading: Locator;
+  readonly checkInDialogConfirmButton: Locator;
+  readonly checkInDialogCancelButton: Locator;
 
   constructor(page: Page) {
     this.page = page;
@@ -52,9 +59,16 @@ export class CheckInPage {
 
     // ---- Guest Detail Panel ----
     this.checkInButton = page.getByRole('button', { name: 'Check-In' });
+    this.alreadyCheckedInButton = page.getByRole('button', { name: 'Already Checked In' });
     this.sendSmsButton = page.getByRole('button', { name: 'Send SMS' });
     this.resendTicketButton = page.getByRole('button', { name: 'Resend Ticket' });
     this.ticketInfoHeading = page.getByRole('heading', { name: 'Ticket Information' });
+
+    // ---- Check-In Confirmation Dialog ----
+    this.checkInDialog = page.getByRole('dialog', { name: 'Check-In Tickets' });
+    this.checkInDialogHeading = page.getByRole('heading', { name: 'Check-In Tickets', level: 2 });
+    this.checkInDialogConfirmButton = page.getByRole('button', { name: /Check-In \d+ Ticket/ });
+    this.checkInDialogCancelButton = page.getByRole('button', { name: 'Cancel' });
   }
 
   // =====================================================================
@@ -71,22 +85,20 @@ export class CheckInPage {
   // Event List Interactions
   // =====================================================================
 
-  /** Type into the search input and wait for results to update. */
+  /** Type into the search input. Callers should follow with an assertion that auto-waits. */
   async searchEvents(query: string) {
     await this.searchInput.fill(query);
-    await this.page.waitForTimeout(1000);
   }
 
-  /** Clear the search input and wait for full list to restore. */
+  /** Clear the search input. Callers should follow with an assertion that auto-waits. */
   async clearSearch() {
     await this.searchInput.clear();
-    await this.page.waitForTimeout(1000);
   }
 
-  /** Click an event card by its heading name. */
+  /** Click an event card by its heading name and wait for guest list to load. */
   async selectEvent(name: string) {
     await this.page.getByRole('heading', { name, level: 3 }).click();
-    await this.page.waitForTimeout(1000);
+    await expect(this.guestListHeading).toBeVisible({ timeout: 10000 });
   }
 
   /**
@@ -115,7 +127,67 @@ export class CheckInPage {
   /** Click a guest card by the guest's name (uses first match to handle duplicate names). */
   async selectGuest(name: string) {
     await this.page.getByRole('heading', { name, level: 3 }).first().click();
-    await this.page.waitForTimeout(500);
+    await expect(this.ticketInfoHeading).toBeVisible({ timeout: 10000 });
+  }
+
+  // =====================================================================
+  // Guest Discovery
+  // =====================================================================
+
+  /**
+   * Page through the guest list and find the first guest that is NOT yet
+   * checked in (i.e. the "Check-In" button is visible in the detail panel).
+   *
+   * Returns the guest's display name, or `null` if every guest across all
+   * pages has already been checked in.
+   */
+  async findUncheckedGuest(): Promise<string | null> {
+    for (let pageNum = 0; pageNum < 10; pageNum++) {
+      // Guest cards contain an email paragraph (with "@"), unlike event cards
+      const guestCards = this.page.locator('[class*="cursor-pointer"]')
+        .filter({ has: this.page.locator('h3') })
+        .filter({ has: this.page.locator('p', { hasText: /@/ }) });
+
+      const count = await guestCards.count();
+
+      for (let i = 0; i < count; i++) {
+        const card = guestCards.nth(i);
+        const name = (await card.locator('h3').textContent())?.trim() ?? '';
+
+        await card.click();
+        await expect(this.ticketInfoHeading).toBeVisible({ timeout: 10000 });
+
+        if (await this.checkInButton.isVisible()) {
+          return name;
+        }
+      }
+
+      // Move to the next page of guests (if available)
+      const nextEnabled = await this.guestNextButton.isEnabled();
+      if (!nextEnabled) break;
+
+      const currentPageText = await this.page.locator('text=/Page \\d+ of \\d+/').nth(1).textContent();
+      await this.guestNextButton.click();
+      // Wait for page text to change, confirming the new page loaded
+      await expect(this.page.locator('text=/Page \\d+ of \\d+/').nth(1)).not.toHaveText(currentPageText ?? '', { timeout: 5000 });
+    }
+
+    return null;
+  }
+
+  // =====================================================================
+  // Check-In Actions
+  // =====================================================================
+
+  /**
+   * Click the Check-In button, confirm in the dialog, and wait for the success toast.
+   * Returns after the toast "Checked in <name>" appears.
+   */
+  async performCheckIn(guestName: string) {
+    await this.checkInButton.click();
+    await expect(this.checkInDialog).toBeVisible({ timeout: 5000 });
+    await this.checkInDialogConfirmButton.click();
+    await expect(this.page.locator('text=Checked in ' + guestName)).toBeVisible({ timeout: 10000 });
   }
 
   // =====================================================================
